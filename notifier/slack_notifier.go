@@ -62,10 +62,6 @@ func (slack *SlackNotifier) Ignore(msg Message) bool {
 }
 
 func (slack *SlackNotifier) Notify(msg Message) error {
-	if slack.Ignore(msg) {
-		return nil
-	}
-
 	if slack.groupMsgs == nil {
 		slack.groupMsgs = make(map[string]Message)
 	}
@@ -85,9 +81,11 @@ func (slack *SlackNotifier) Notify(msg Message) error {
 func (slack *SlackNotifier) sendConsumerGroupStatusNotify() error {
 	msgs := make([]attachment, len(slack.Groups))
 	i := 0
+	send := 0;
 	for _, msg := range slack.groupMsgs {
 
 		var emoji, color string
+		msgAdd := 0
 		switch msg.Status {
 		case protocol.StatusOK:
 			emoji = ":white_check_mark:"
@@ -95,9 +93,13 @@ func (slack *SlackNotifier) sendConsumerGroupStatusNotify() error {
 		case protocol.StatusNotFound, protocol.StatusWarning:
 			emoji = ":question:"
 			color = "warning"
+			send++
+			msgAdd++
 		default:
 			emoji = ":x:"
 			color = "danger"
+			send++
+			msgAdd++
 		}
 
 		title := "Burrow monitoring report"
@@ -112,6 +114,8 @@ func (slack *SlackNotifier) sendConsumerGroupStatusNotify() error {
 				p.Status.String(), p.Topic, p.Partition, p.Start.Offset, p.Start.Lag, p.End.Offset, p.End.Lag)
 		}
 
+		if msgAdd != 0 {
+
 		msgs[i] = attachment{
 			Color:    color,
 			Title:    title,
@@ -122,6 +126,9 @@ func (slack *SlackNotifier) sendConsumerGroupStatusNotify() error {
 		}
 
 		i++
+
+		}
+
 	}
 	slack.groupMsgs = make(map[string]Message)
 
@@ -133,7 +140,11 @@ func (slack *SlackNotifier) sendConsumerGroupStatusNotify() error {
 		Attachments: msgs,
 	}
 
-	return slack.postToSlack(slackMessage)
+	if send != 0 {
+		return slack.postToSlack(slackMessage)
+	} else {
+		return nil;
+	}
 }
 
 func (slack *SlackNotifier) postToSlack(slackMessage *SlackMessage) error {
